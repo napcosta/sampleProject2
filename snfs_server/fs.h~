@@ -148,8 +148,6 @@ int fs_mkdir(fs_t* fs, inodeid_t dir, char* newdir, inodeid_t* newdirid);
 int fs_readdir(fs_t* fs, inodeid_t dir, fs_file_name_t* entries, int maxentries,
    int* numentries);
 
-int fs_remove(fs_t* fs, inodeid_t dir, char* name);
-
 /*
  * fd_dump: dump the contents of a file system
  */

@@ -146,7 +146,7 @@ int my_open(char* name, int flags)
 //test
 int my_remove(char *name)
 {
-	snfs_fhandle_t dir;
+	snfs_fhandle_t dir, file_h;
 	unsigned fsize;	
 
 	if (!Lib_initted) {
@@ -159,7 +159,7 @@ int my_remove(char *name)
 		return -1;
 	}
 	
-	snfs_remove(dir, name, fsize);
+	snfs_remove(dir, name, &file_h);
 	return 1;	
 
 }

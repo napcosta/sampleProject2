@@ -146,8 +146,7 @@ int my_open(char* name, int flags)
 //test
 int my_remove(char *name)
 {
-	snfs_fhandle_t dir;
-	unsigned fsize;	
+	snfs_fhandle_t dir, file;	
 
 	if (!Lib_initted) {
 		printf("[my_read] Library is not initialized.\n");
@@ -156,10 +155,10 @@ int my_remove(char *name)
 
 	if (snfs_lookup(name, &dir, &fsize) != STAT_OK) {
 		puts("[my_remove] ERROR looking for file on server. \n" );
-		return -1
+		return -1;
 	}
 	
-	snfs_remove(dir, name, fsize);
+	snfs_remove(dir, name, file);
 	return 1;	
 
 }

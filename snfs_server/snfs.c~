@@ -221,7 +221,7 @@ void snfs_remove(snfs_msg_req_t *req, int reqsz, snfs_msg_res_t *res, int* ressz
 	char name[50];
 	// get input arguments
 	inodeid_t dir = (inodeid_t)req->body.remove.dir;
-	strcpy(name,  (inodeid_t)req->body.remove.name);
+	strcpy(name,  req->body.remove.name);
 	
 	// format the response to the client
 	*ressz = sizeof(*res) - sizeof(res->body) + sizeof(res->body.remove);

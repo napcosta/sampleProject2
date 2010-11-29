@@ -493,7 +493,7 @@ int fs_write(fs_t* fs, inodeid_t file, unsigned offset, unsigned count,
 
 
 int fs_create(fs_t* fs, inodeid_t dir, char* file, inodeid_t* fileid)
-{
+{	
    if (fs == NULL || dir >= ITAB_SIZE || file == NULL || fileid == NULL) {
       printf("[fs_create] malformed arguments.\n");
       return -1;
@@ -540,8 +540,8 @@ int fs_create(fs_t* fs, inodeid_t dir, char* file, inodeid_t* fileid)
 
    // add the entry to the directory
    fs_dentry_t page[DIR_PAGE_ENTRIES];
-   block_read(fs->blocks,idir->blocks[idir->size/BLOCK_SIZE],(char*)page);
-   fs_dentry_t* entry = &page[idir->size % BLOCK_SIZE / sizeof(fs_dentry_t)];
+   block_read(fs->blocks,idir->blocks[idir->size/BLOCK_SIZE],(char*)page); //mete o resultado da leitura em (char*)page
+   fs_dentry_t* entry = &page[idir->size % BLOCK_SIZE / sizeof(fs_dentry_t)]; // entry: próxima posição vazia do bloco
    strcpy(entry->name,file);
    entry->inodeid = finode;
    block_write(fs->blocks,idir->blocks[idir->size/BLOCK_SIZE],(char*)page);
@@ -663,16 +663,101 @@ int fs_readdir(fs_t* fs, inodeid_t dir, fs_file_name_t* entries, int maxentries,
    return 0;
 }
 
+/*
+ * void search_dir_entry (fs_t* fs, inodei_t dir, inodeid_t fileid, int *num_dir_entry, char*page)
+ *
+ * searches an entry in a file system
+ *
+ * fs - reference to the filesystem
+ * dir - directory to be searched
+ * fileid - file id 
+ * *num_dir_entry - number refering to the position of an entry in a block of a certain directory [out]
+ * *page - array of entries [out]
+ */
+void search_dir_entry (fs_t* fs, inodeid_t dir, inodeid_t fileid, int *num_dir_entry, int* block_num, char* page){
+	
+	fs_inode_t* idir = &fs->inode_tab[dir];
+	int num = idir->size / sizeof(fs_dentry_t); //número de entradas no directório
+	int iblock = 0;
+	fs_dentry_t ipage[DIR_PAGE_ENTRIES];
+
+	while (num > 0){
+		block_read(fs->blocks, idir->blocks[iblock++], (char*)ipage); //guarda um bloco em page
+		for (int i = 0; i < DIR_PAGE_ENTRIES && num > 0; i++, num--) {
+			if (ipage[i].inodeid == fileid){
+				num_dir_entry = &i;
+				block_num = &iblock;
+				page = (char *) ipage;
+				return;
+			}
+		}
+	}
+
+	return;
+}
+
 int fs_remove(fs_t* fs, inodeid_t dir, char *name)
 {
 	//checks if the arguments are valid
-	if (fs == NULL || dir>=ITAB_SIZE || name == NULL)
-		dprintf("[fs_remove] malformed arguments. \n")
+	if (fs == NULL || dir>=ITAB_SIZE || name == NULL) {
+		dprintf("[fs_remove] malformed arguments. \n");
+		return -1;
+	}
 
+	if (strlen(name) == 0 || strlen(name)+1 > FS_MAX_FNAME_SZ) {
+		dprintf("[fs_remove] file name size error\n");
+		return -1;
+	}
+
+	if (!BMAP_ISSET(fs->inode_bmap, dir)) {
+		dprintf("[fs_remove] inode is not being used.\n");
+		return -1;
+	}
+	
+	inodeid_t fileid = 0;
+	if (!fsi_dir_search(fs, dir, name, &fileid) == 0) {
+		dprintf("[fs_remove] file/dir does not exist\n");
+		return -1;
+	}
+	
+	fs_inode_t* idir = &fs->inode_tab[dir];
+	if (idir->type != FS_DIR) {
+		dprintf("[fs_create] file already exists. \n");
+		return -1;
+	}
+
+	fs_dentry_t page[DIR_PAGE_ENTRIES];	
+	int num_dir_entry = 0, block_num = 0;
+	
+	search_dir_entry(fs, dir, fileid, &num_dir_entry, &block_num, (char*)page);
+		
+	fs_dentry_t last_page[DIR_PAGE_ENTRIES]; // array de entradas do ultimo bloco
+	int last_entry_index = (idir->size % BLOCK_SIZE / sizeof(fs_dentry_t)) -1;
+	block_read(fs->blocks,idir->blocks[idir->size/BLOCK_SIZE],(char *)last_page);
+	fs_dentry_t* last_entry	= &last_page[last_entry_index]; // ponteiro p/ última posição ocupada do dir
+	
+
+	page[num_dir_entry] = *last_entry; // mete a ultima entrada na posição da que vai ser removida
+	block_write(fs->blocks, idir->blocks[block_num], (char*)page);
+	idir->size -= sizeof(fs_dentry_t);
+
+	int i, j;
+	
+	if (last_entry_index == 0) { //se for a primeira entrada do bloco
+		for(i = 0, j = 1; idir->blocks[j] != 0; i++, j++);
+		BMAP_CLR(fs->blk_bmap, idir->blocks[i]);
+	}
+
+	fs_inode_t ifile = fs->inode_tab[fileid];
+
+	for (int i = 0; i < INODE_NUM_BLKS && ifile.blocks[i] != 0; i++) {       // liberta o espaço ocupado pelo ficheiro
+		BMAP_CLR(fs->blk_bmap, ifile.blocks[i]);
+	}
+
+	BMAP_CLR(fs->inode_bmap, fileid);
+
+	return 0;
 }
-
-
-
 
 void fs_dump(fs_t* fs)
 {
