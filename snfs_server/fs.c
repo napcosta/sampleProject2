@@ -696,6 +696,45 @@ void search_dir_entry (fs_t* fs, inodeid_t dir, inodeid_t fileid, int *num_dir_e
 	return;
 }
 
+void fs_remove_file(fs_t* fs, inodeid_t entryid) {
+
+	fs_inode_t ifile = fs->inode_tab[entryid];
+
+	for(int i = 0; i < INODE_NUM_BLKS && ifile.blocks[i] != 0 ; i++) {
+		BMAP_CLR(fs->blk_bmap, ifile.blocks[i]);
+	}
+
+	BMAP_CLR(fs->inode_bmap, entryid);
+}
+
+
+
+void fs_remove_dir(fs_t* fs, inodeid_t dir) {
+
+	fs_inode_t idir = fs->inode_tab[dir];
+	int num = idir.size / sizeof(fs_dentry_t); // numero de entradas num directorio
+	fs_dentry_t page[DIR_PAGE_ENTRIES];
+
+	for(int i = 0; i < INODE_NUM_BLKS && idir.blocks[i] != 0; i++){
+		int num_dir_pg_entries;
+		while(num > 0){
+			block_read(fs->blocks, idir.blocks[i], (char*)page);
+			for(num_dir_pg_entries = 0; num_dir_pg_entries < DIR_PAGE_ENTRIES && num > 0; i++, num --){
+				inodeid_t entryid = page[num_dir_pg_entries].inodeid;
+				if (fs->inode_tab[entryid].type == FS_FILE)
+					fs_remove_file(fs, entryid);
+				else fs_remove_dir(fs, entryid);
+			}
+		}
+	}
+
+	BMAP_CLR(fs->inode_bmap, dir);
+
+}
+
+
+	
+
 int fs_remove(fs_t* fs, inodeid_t dir, char *name)
 {
 	//checks if the arguments are valid
@@ -714,8 +753,8 @@ int fs_remove(fs_t* fs, inodeid_t dir, char *name)
 		return -1;
 	}
 	
-	inodeid_t fileid = 0;
-	if (!fsi_dir_search(fs, dir, name, &fileid) == 0) {
+	inodeid_t entryid = 0;
+	if (!fsi_dir_search(fs, dir, name, &entryid) == 0) {
 		dprintf("[fs_remove] file/dir does not exist\n");
 		return -1;
 	}
@@ -729,7 +768,7 @@ int fs_remove(fs_t* fs, inodeid_t dir, char *name)
 	fs_dentry_t page[DIR_PAGE_ENTRIES];	
 	int num_dir_entry = 0, block_num = 0;
 	
-	search_dir_entry(fs, dir, fileid, &num_dir_entry, &block_num, (char*)page);
+	search_dir_entry(fs, dir, entryid, &num_dir_entry, &block_num, (char*)page);
 		
 	fs_dentry_t last_page[DIR_PAGE_ENTRIES]; // array de entradas do ultimo bloco
 	int last_entry_index = (idir->size % BLOCK_SIZE / sizeof(fs_dentry_t)) -1;
@@ -742,19 +781,22 @@ int fs_remove(fs_t* fs, inodeid_t dir, char *name)
 	idir->size -= sizeof(fs_dentry_t); // diminui o tamanho do directório em uma entrada
 
 	int i, j;
-	
+
 	if (last_entry_index == 0) { //se for a primeira entrada do bloco
 		for(i = 0, j = 1; idir->blocks[j] != 0; i++, j++);
 		BMAP_CLR(fs->blk_bmap, idir->blocks[i]); 
+		idir->blocks[i] = 0;
 	}
 
-	fs_inode_t ifile = fs->inode_tab[fileid];
 
-	for (int i = 0; i < INODE_NUM_BLKS && ifile.blocks[i] != 0; i++) {       // liberta o espaço ocupado pelo ficheiro
-		BMAP_CLR(fs->blk_bmap, ifile.blocks[i]);
-	}
-
-	BMAP_CLR(fs->inode_bmap, fileid);
+	fs_inode_t ientry = fs->inode_tab[entryid]; // vai buscar o inode do ficheiro/directorio à tabela de inodes
+	
+	if(ientry.type == FS_FILE)
+		fs_remove_file(fs, entryid);
+	else 
+		fs_remove_file(fs, entryid);
+	
+	BMAP_CLR(fs->inode_bmap, entryid);
 
 	return 0;
 }
