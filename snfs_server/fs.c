@@ -491,7 +491,6 @@ int fs_write(fs_t* fs, inodeid_t file, unsigned offset, unsigned count,
 	return 0;
 }
 
-
 int fs_create(fs_t* fs, inodeid_t dir, char* file, inodeid_t* fileid)
 {	
    if (fs == NULL || dir >= ITAB_SIZE || file == NULL || fileid == NULL) {
@@ -557,7 +556,6 @@ int fs_create(fs_t* fs, inodeid_t dir, char* file, inodeid_t* fileid)
    *fileid = finode;
    return 0;
 }
-
 
 int fs_mkdir(fs_t* fs, inodeid_t dir, char* newdir, inodeid_t* newdirid)
 {
@@ -761,7 +759,7 @@ int fs_remove(fs_t* fs, inodeid_t dir, char *name)
 	
 	fs_inode_t* idir = &fs->inode_tab[dir];
 	if (idir->type != FS_DIR) {
-		dprintf("[fs_create] file already exists. \n");
+		dprintf("[fs_remove] inode is not a directory. \n");
 		return -1;
 	}
 
@@ -775,29 +773,124 @@ int fs_remove(fs_t* fs, inodeid_t dir, char *name)
 	block_read(fs->blocks,idir->blocks[idir->size/BLOCK_SIZE],(char *)last_page);
 	fs_dentry_t* last_entry	= &last_page[last_entry_index]; // ponteiro p/ última posição ocupada do dir
 	
-
 	page[num_dir_entry] = *last_entry; // mete a ultima entrada na posição da que vai ser removida
 	block_write(fs->blocks, idir->blocks[block_num], (char*)page); // escreve o bloco (page) no disco
 	idir->size -= sizeof(fs_dentry_t); // diminui o tamanho do directório em uma entrada
 
 	int i, j;
 
-	if (last_entry_index == 0) { //se for a primeira entrada do bloco
+	if (last_entry_index == 0) { //se for a primeira entrada do bloco, elimina esse bloco
 		for(i = 0, j = 1; idir->blocks[j] != 0; i++, j++);
 		BMAP_CLR(fs->blk_bmap, idir->blocks[i]); 
 		idir->blocks[i] = 0;
 	}
-
 
 	fs_inode_t ientry = fs->inode_tab[entryid]; // vai buscar o inode do ficheiro/directorio à tabela de inodes
 	
 	if(ientry.type == FS_FILE)
 		fs_remove_file(fs, entryid);
 	else 
-		fs_remove_file(fs, entryid);
+		fs_remove_dir(fs, entryid);
 	
 	BMAP_CLR(fs->inode_bmap, entryid);
 
+	return 0;
+}
+
+void fs_copy_file(fs_t *fs, inodeid_t dir2, inodeid_t file1id, char* file2) {
+	
+	inodeid_t file2id;
+	fs_inode_t ifile1 = fs->inode_tab[file1id];
+
+	fs_create(fs, dir2, file2, &file2id);
+	
+	fs_inode_t ifile2 = fs->inode_tab[file2id];
+
+	for (int i = 0; i < INODE_NUM_BLKS && ifile1.blocks[i] != 0; i++) {
+		char new_block[BLOCK_SIZE];
+		unsigned blockid = 0;
+		block_read(fs->blocks,ifile1.blocks[i], new_block);
+		fsi_bmap_find_free(fs->blk_bmap, BLOCK_SIZE, &blockid);
+		block_write(fs->blocks, blockid, new_block);
+		ifile2.blocks[i] = blockid;
+		//ifile2.blocks[i]=ifile1.blocks[i];
+	}
+}
+
+void fs_copy_dir(fs_t *fs, inodeid_t dir1id, inodeid_t dir2id, char* dirname)
+{
+	fs_inode_t idir1 = fs->inode_tab[dir1id];
+	inodeid_t idir2;
+	int dirsize = idir1.size / sizeof(fs_dentry_t); //numero de entradas do directório a ser copiado
+	fs_dentry_t page[DIR_PAGE_ENTRIES];
+
+	fs_mkdir(fs, dir2id, dirname, &idir2);
+
+	for (int i = 0; i < INODE_NUM_BLKS && idir1.blocks[i] != 0; i++) {
+		int num_dir_pg_entries;
+		while (dirsize > 0) { // enquanto houver entradas no directório
+			block_read(fs->blocks, idir1.blocks[i], (char*) page);
+			for(num_dir_pg_entries = 0; num_dir_pg_entries < DIR_PAGE_ENTRIES && dirsize > 0; i++, dirsize--) {
+				inodeid_t entryid = page[num_dir_pg_entries].inodeid;
+				if (fs->inode_tab[entryid].type == FS_FILE)
+					fs_copy_file(fs, dir2id, entryid, page[num_dir_pg_entries].name);
+				if (fs->inode_tab[entryid].type == FS_DIR)
+					fs_copy_dir(fs, entryid, idir2, page[num_dir_pg_entries].name);
+			}
+		}
+	}
+}
+
+int fs_copy(fs_t *fs, inodeid_t dir1, inodeid_t dir2, char* file1, char* file2)
+{
+	if (fs == NULL || dir1>=ITAB_SIZE || dir2>=ITAB_SIZE || file1 == NULL || file2 == NULL) {
+		dprintf("[fs_copy] malformed arguments\n");
+		return -1;
+	}
+
+	if (strlen(file1) == 0 || strlen(file1)+1 > FS_MAX_FNAME_SZ) {
+		dprintf("[fs_copy] source file name size error\n");
+		return -1;
+	}
+	
+	if (strlen(file2) == 0 || strlen(file2)+1 > FS_MAX_FNAME_SZ) {
+		dprintf("[fs_copy] source file name size error\n");
+		return -1;
+	}
+
+	if (!BMAP_ISSET(fs->inode_bmap, dir1)) {
+		dprintf("[fs_copy] inode (dir1) is not being used");
+		return -1;
+	}
+
+	if (!BMAP_ISSET(fs->inode_bmap, dir2)) {
+		dprintf("[fs_copy] inode (dir2) is not being used");
+		return -1;
+	}
+
+	inodeid_t fileid=0;
+	if (!fsi_dir_search(fs, dir1, file1, &fileid)==0) {
+		dprintf("[fs_copy] file does not exist\n");
+		return -1;
+	}
+	
+	fs_inode_t* idir1 = &fs->inode_tab[dir1];
+	if (idir1->type != FS_DIR) {
+		dprintf("[fs_copy] inode (dir1) is not a directory");
+		return -1;
+	}
+
+	fs_inode_t* idir2 = &fs->inode_tab[dir2];
+	if (idir2->type != FS_DIR) {
+		dprintf("[fs_copy] inode (dir2) is not a directory");
+		return -1;
+	}
+
+//	fs_dentry_t page[DIR_PAGE_ENTRIES];
+//	int num_dir_entry = 0, block_num = 0;
+
+	fs_copy_file(fs, dir2,fileid, file2);		
+	
 	return 0;
 }
 

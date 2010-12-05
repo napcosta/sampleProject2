@@ -113,7 +113,7 @@ typedef struct {
 
 
 typedef struct {
-   char pname[MAX_FILE_NAME_SIZE];
+   char pname[MAX_PATH_NAME_SIZE];
 } snfs_msg_req_lookup_t;
 
 

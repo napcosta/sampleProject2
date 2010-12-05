@@ -93,14 +93,16 @@ int my_open(char* name, int flags)
 
         while(token != NULL) {
              i++;
-             strncpy(newfilename,token, strlen(token));
+	     strcpy(newfilename, token);
+            // strncpy(newfilename,token, strlen(token));
 
              token = strtok(NULL, search);
          } 
          if ( i > 1)
               strncpy(newdirname, name, strlen(name)-(strlen(newfilename)+1));
          else {  
-            strncpy(newfilename, &name[1], (strlen(name)-1)); 
+            strncpy(newfilename, &name[1], (strlen(name)-1));
+	    newfilename[strlen(newfilename)] = '\0'; //errata 
             strcpy(newdirname, name);   
           }    	
 
@@ -144,24 +146,90 @@ int my_open(char* name, int flags)
 }
 
 //test
-int my_remove(char *name)
+int my_remove(char *pathname)
 {
 	snfs_fhandle_t dir, file_h;
-	unsigned fsize;	
+	unsigned fsize;
+	char newfilename[MAX_FILE_NAME_SIZE];
+	char newdirname[MAX_PATH_NAME_SIZE];
+	char fulldirname[MAX_PATH_NAME_SIZE];
+	char *token;
+	char *search = "/";
+	int i = 0;
+
+	memset(&newfilename, 0, MAX_FILE_NAME_SIZE);
+	memset(&newdirname, 0, MAX_PATH_NAME_SIZE);
+	memset(&fulldirname, 0, MAX_PATH_NAME_SIZE);
+
+	strcpy(fulldirname, pathname);
+	token = strtok(fulldirname, search);
+
+	while(token != NULL){
+		i++;
+		strcpy(newfilename, token);
+
+		token = strtok(NULL, search);
+	}
+	if (i>1)
+		strncpy(newdirname, pathname, strlen(pathname)-(strlen(newfilename)+1));
+	else {
+		strncpy(newfilename, &pathname[1], (strlen(pathname)-1));
+		newfilename[strlen(newfilename)] = '\0';
+	}
+
+	if (newfilename == NULL){
+		puts("[my_remove] Error looking for directory in server.");
+		return -1;
+	}
 
 	if (!Lib_initted) {
 		printf("[my_read] Library is not initialized.\n");
 		return -1;
 	}
 
-	if (snfs_lookup(name, &dir, &fsize) != STAT_OK) {
-		puts("[my_remove] ERROR looking for file on server. \n" );
-		return -1;
+	snfs_call_status_t status = snfs_lookup(pathname, &file_h, &fsize);
+
+	if(status != STAT_OK){
+
+		if (snfs_lookup(newdirname, &dir, &fsize) != STAT_OK) {
+			puts("[my_remove] ERROR looking for directory on server." );
+			return -1;
+		}
+
+		if (i == 1)
+			dir = (snfs_fhandle_t) 1;
 	}
 	
-	snfs_remove(dir, name, &file_h);
+	if (snfs_remove(dir, newfilename, &file_h) != STAT_OK){
+		puts("[my_remove] cannot delete file from server.");
+		return -1;
+	}
 	return 1;	
 
+}
+
+int my_copy(char *name1, char *name2) 
+{
+	return 1;
+}
+
+
+int my_append(char *name1, char *name2) 
+{
+	return 1;
+}
+
+int my_defrag()
+{
+	return 1;
+}
+
+void my_diskusage()
+{
+}
+
+void my_dumpcache()
+{
 }
 
 int my_read(int fileId, char* buffer, unsigned numBytes)

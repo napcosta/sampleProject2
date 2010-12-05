@@ -288,35 +288,35 @@ typedef struct {
  */
 
 typedef struct {
-  snfs_msg_type_t type;
-  union {
-    snfs_msg_req_ping_t ping;
-    snfs_msg_req_lookup_t lookup;
-    snfs_msg_req_read_t read;
-    snfs_msg_req_write_t write;
-    snfs_msg_req_create_t create;
-    snfs_msg_req_mkdir_t mkdir;
-    snfs_msg_req_readdir_t readdir;
-    snfs_msg_req_remove_t remove;
-	snfs_msg_req_copy_t copy;
-	snfs_msg_req_append_t append;	
-  } body;
+  	snfs_msg_type_t type;
+  	union {
+    		snfs_msg_req_ping_t ping;
+    		snfs_msg_req_lookup_t lookup;
+	    	snfs_msg_req_read_t read;
+	    	snfs_msg_req_write_t write;
+	    	snfs_msg_req_create_t create;
+	    	snfs_msg_req_mkdir_t mkdir;
+	    	snfs_msg_req_readdir_t readdir;
+    		snfs_msg_req_remove_t remove;
+		snfs_msg_req_copy_t copy;
+		snfs_msg_req_append_t append;	
+  	} body;
 } snfs_msg_req_t;
 
 typedef struct {
-   snfs_msg_type_t type;
-   snfs_msg_res_status_t status;
-   union {
-      snfs_msg_res_ping_t ping;
-      snfs_msg_res_lookup_t lookup;
-      snfs_msg_res_read_t read;
-      snfs_msg_res_write_t write;
-      snfs_msg_res_create_t create;
-      snfs_msg_res_mkdir_t mkdir;
-      snfs_msg_res_readdir_t readdir;
-	  snfs_msg_res_remove_t remove;
-	  snfs_msg_res_copy_t copy;
-	  snfs_msg_res_append_t append;	
+	snfs_msg_type_t type;
+	snfs_msg_res_status_t status;
+   	union {
+      		snfs_msg_res_ping_t ping;
+      		snfs_msg_res_lookup_t lookup;
+      		snfs_msg_res_read_t read;
+      		snfs_msg_res_write_t write;
+      		snfs_msg_res_create_t create;
+      		snfs_msg_res_mkdir_t mkdir;
+      		snfs_msg_res_readdir_t readdir;
+	  	snfs_msg_res_remove_t remove;
+	  	snfs_msg_res_copy_t copy;
+	  	snfs_msg_res_append_t append;	
    } body;
 } snfs_msg_res_t;
 

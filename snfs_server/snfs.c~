@@ -218,7 +218,7 @@ void snfs_readdir(snfs_msg_req_t *req, int reqsz, snfs_msg_res_t *res,
 void snfs_remove(snfs_msg_req_t *req, int reqsz, snfs_msg_res_t *res, int* ressz)
 {
 	printf("[snfs] handling a 'remove' request");
-	char name[50];
+	char name[MAX_FILE_NAME_SIZE];
 	// get input arguments
 	inodeid_t dir = (inodeid_t)req->body.remove.dir;
 	strcpy(name,  req->body.remove.name);
@@ -238,8 +238,24 @@ void snfs_remove(snfs_msg_req_t *req, int reqsz, snfs_msg_res_t *res, int* ressz
 void snfs_copy(snfs_msg_req_t *req, int reqsz, snfs_msg_res_t *res, int* ressz)
 {
 
-// IMPLEMENT
+	printf("[snfs] handling a 'remove' request");
+	char file1[MAX_FILE_NAME_SIZE]; //src filename
+	char file2[MAX_FILE_NAME_SIZE]; //dst filename
 
+	//get input arguments
+	inodeid_t dir1 = (inodeid_t)req->body.copy.src_dir;
+	inodeid_t dir2 = (inodeid_t)req->body.copy.dst_dir;
+	strcpy(file1, req->body.copy.src_name);
+	strcpy/(file2, req->body.copy.dst_name);
+
+	// format the response to the client
+	*ressz = sizeof(*res) - sizeof(res->body) + sizeof(res->body.copy);
+	res->type = REQ_COPY;
+	res->status = RES_ERROR;
+
+	if (fs_copy(FS, dir1, dir2, file1, file2) == 0) {
+		res->status = RES_OK;
+	}
 }	   
 
 void snfs_append(snfs_msg_req_t *req, int reqsz, snfs_msg_res_t *res, int* ressz)

@@ -337,9 +337,27 @@ snfs_call_status_t snfs_remove(snfs_fhandle_t dir, char* name, snfs_fhandle_t* f
 
 snfs_call_status_t snfs_copy(snfs_fhandle_t src_dir, char* src_name, snfs_fhandle_t dst_dir, char* dst_name, snfs_fhandle_t* file)  
 {   
-   // IMPLEMENT 
+	snfs_msg_req_t req;
+	snfs_msg_res_t res;
 
-   return STAT_ERROR;
+	memset(&req, 0, sizeof(req));
+	memset(&res, 0, sizeof(res));
+
+	//format request
+	req.type = REQ_COPY;
+	req.body.copy.src_dir = src_dir;
+	req.body.copy.dst_dir = dst_dir;
+	strcpy(req.body.copy.src_name, src_name);
+	strcpy(req.body.copy.dst_name, dst_name);
+
+	int status = remote_call(&req, sizeof(req.type) + sizeof(req.body.copy), &res, sizeof(res));
+
+	// format response
+	if (status < 0 || res.status != RES_OK)
+		return STAT_ERROR;
+	
+	*file = res.body.copy.file;
+	return STAT_OK;
 }
 
 snfs_call_status_t snfs_append(snfs_fhandle_t dir1, char* name1, snfs_fhandle_t dir2, char* name2, unsigned int* fsize)  
